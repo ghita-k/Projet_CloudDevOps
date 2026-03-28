@@ -1,0 +1,19 @@
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Environnements
+.env
+
+# VS Code
+.vscode/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Docker
+*.log

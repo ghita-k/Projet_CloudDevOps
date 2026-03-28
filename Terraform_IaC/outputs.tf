@@ -1,0 +1,15 @@
+output "resource_group" {
+  value = azurerm_resource_group.rg.name
+}
+
+output "acr_name" {
+  value = azurerm_container_registry.acr.name
+}
+
+output "aks_name" {
+  value = azurerm_kubernetes_cluster.aks.name
+}
+
+output "keyvault_name" {
+  value = azurerm_key_vault.kv.name
+}

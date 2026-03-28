@@ -1,0 +1,65 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  ACR_NAME: taskmanageracr1234   # remplace par ton ACR
+  IMAGE_FRONT: $(ACR_NAME).azurecr.io/frontend:$(Build.BuildId)
+  IMAGE_BACK:  $(ACR_NAME).azurecr.io/backend:$(Build.BuildId)
+
+stages:
+- stage: BuildAndScan
+  displayName: Build, Scan and Push
+  jobs:
+  - job: Build
+    displayName: Build Images and Run Scans
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+    - task: SonarQubePrepare@5
+      inputs:
+        SonarQube: 'SonarServiceConnection'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'taskmanager-project'
+        extraProperties: |
+          sonar.sources=.
+          sonar.exclusions=**/node_modules/**,**/build/**
+
+    - script: |
+        docker --version
+        docker build -t $(IMAGE_BACK) ./backend
+        docker build -t $(IMAGE_FRONT) ./frontend
+      displayName: Build Docker images
+
+    - task: SonarQubeAnalyze@5
+
+    - task: SonarQubePublish@5
+      inputs:
+        pollingTimeoutSec: '300'
+
+    - script: |
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 1 $(IMAGE_BACK) || exit 1
+      displayName: Trivy scan backend
+
+    - script: |
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 1 $(IMAGE_FRONT) || exit 1
+      displayName: Trivy scan frontend
+
+    - task: Docker@2
+      displayName: Push backend
+      inputs:
+        containerRegistry: 'ACR-ServiceConnection'
+        command: push
+        repository: $(IMAGE_BACK)
+
+    - task: Docker@2
+      displayName: Push frontend
+      inputs:
+        containerRegistry: 'ACR-ServiceConnection'
+        command: push
+        repository: $(IMAGE_FRONT)

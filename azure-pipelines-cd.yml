@@ -1,0 +1,34 @@
+trigger: none
+
+variables:
+  ACR_NAME: taskmanageracr1234
+  IMAGE_FRONT: $(ACR_NAME).azurecr.io/frontend:$(Build.BuildId)
+  IMAGE_BACK:  $(ACR_NAME).azurecr.io/backend:$(Build.BuildId)
+
+stages:
+- stage: DeployDev
+  displayName: Deploy to Dev AKS
+  jobs:
+  - deployment: DeployToAKS
+    environment: 'dev'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: 'AzureServiceConnection'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials --resource-group $(resourceGroup) --name $(aksName) --overwrite-existing
+                kubectl apply -f k8s/namespace.yaml
+                kubectl apply -f k8s/secret-mongo.yaml -n taskmanager
+                # Replace images in manifests and apply
+                sed -i "s|REPLACE_ACR/frontend:REPLACE_TAG|$(IMAGE_BACK)|g" k8s/deployment-backend.yaml || true
+                sed -i "s|REPLACE_ACR/frontend:REPLACE_TAG|$(IMAGE_FRONT)|g" k8s/deployment-frontend.yaml || true
+                kubectl apply -f k8s/ -n taskmanager
+                kubectl rollout status deployment/backend -n taskmanager
+                kubectl rollout status deployment/frontend -n taskmanager
